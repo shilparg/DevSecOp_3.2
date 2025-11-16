@@ -24,7 +24,7 @@ data "aws_caller_identity" "current" {}
 locals {
  # If your ARN contains invalid characters, hardcode a sanitized name_prefix instead
   raw_name     = split("/", data.aws_caller_identity.current.arn)[1]
-  name_prefix  = replace(replace(raw_name, ".", "-"), ":", "-")
+  name_prefix  = replace(replace(raw_name, "-", ""), "_", "")
   account_id   = data.aws_caller_identity.current.account_id
 }
 
