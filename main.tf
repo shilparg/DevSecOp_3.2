@@ -22,10 +22,11 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  # name_prefix = "${split("/", "${data.aws_caller_identity.current.arn}")[1]}"
-  # account_id  = "${data.aws_caller_identity.current.account_id}"
-  raw_name    = split("/", data.aws_caller_identity.current.arn)[1]
-  name_prefix = lower(replace(replace(raw_name, "-", ""), ".", ""))
+
+  # raw_name    = split("/", data.aws_caller_identity.current.arn)[1]
+  # name_prefix = lower(replace(replace(raw_name, "-", ""), ".", ""))
+  # account_id  = data.aws_caller_identity.current.account_id
+  name_prefix = lower(replace(replace(split("/", data.aws_caller_identity.current.arn)[1], "-", ""), ".", ""))
   account_id  = data.aws_caller_identity.current.account_id
 }
 
