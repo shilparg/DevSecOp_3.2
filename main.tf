@@ -5,7 +5,7 @@ provider "aws" {
 terraform {
   backend "s3" {
     bucket = "sctp-ce11-tfstate"
-    key    = "jaz-s3-tf-ci.tfstate"  #Change this
+    key    = "shilpa-s3-tf-ci.tfstate"  #Change this
     region = "us-east-1"
   }
 }
@@ -19,3 +19,4 @@ locals {
 
 resource "aws_s3_bucket" "s3_tf" {
   bucket = "${local.name_prefix}-s3-tf-bkt-${local.account_id}"
+}
