@@ -22,11 +22,26 @@ provider "aws" {
 data "aws_caller_identity" "current" {}
 
 locals {
-  # If your ARN contains invalid characters, hardcode a sanitized name_prefix instead
-  name_prefix = split("/", data.aws_caller_identity.current.arn)[1]
-  account_id  = data.aws_caller_identity.current.account_id
+ # If your ARN contains invalid characters, hardcode a sanitized name_prefix instead
+  raw_name     = split("/", data.aws_caller_identity.current.arn)[1]
+  name_prefix  = replace(replace(raw_name, ".", "-"), ":", "-")
+  account_id   = data.aws_caller_identity.current.account_id
 }
 
 resource "aws_s3_bucket" "s3_tf" {
   bucket = "${local.name_prefix}-s3-tf-bkt-${local.account_id}"
+
+  tags = {
+    Owner       = local.name_prefix
+    Environment = "dev"
+    Purpose     = "Terraform state bucket"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "s3_tf_versioning" {
+  bucket = aws_s3_bucket.s3_tf.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
