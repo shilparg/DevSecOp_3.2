@@ -27,7 +27,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "s3_tf" {
-  bucket = "${local.name_prefix}-s3-tf-bkt-${local.account_id}"
+  bucket = format("%s-s3-tf-bkt-%s", local.name_prefix, local.account_id)
 
   tags = {
     Owner       = local.name_prefix
@@ -64,7 +64,7 @@ resource "aws_s3_bucket_public_access_block" "s3_tf_block" {
 }
 
 resource "aws_s3_bucket" "s3_tf_logs" {
-  bucket = "${local.name_prefix}-s3-tf-logs-${local.account_id}"
+  bucket = format("%s-s3-tf-logs-%s", local.name_prefix, local.account_id)
 }
 
 resource "aws_s3_bucket_logging" "s3_tf_logging" {
