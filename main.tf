@@ -23,7 +23,7 @@ data "aws_caller_identity" "current" {}
 
 locals {
   raw_name     = split("/", data.aws_caller_identity.current.arn)[1]
-  name_prefix  = replace(replace(raw_name, "-", ""), ".", "")
+  name_prefix = lower(replace(replace(raw_name, "-", ""), ".", ""))
   account_id   = data.aws_caller_identity.current.account_id
 }
 
