@@ -21,7 +21,7 @@ provider "aws" {
 
 provider "aws" {
   alias  = "replica"
-  region = "us-east-2"
+  region = "us-east-2" # cross-region replica
 }
 
 data "aws_caller_identity" "current" {}
@@ -32,7 +32,7 @@ locals {
 }
 
 #-------------------------------
-# Primary bucket: s3_tf
+# Primary bucket (Terraform state)
 #-------------------------------
 resource "aws_s3_bucket" "s3_tf" {
   bucket        = format("%s-s3-tf-bkt-%s", local.name_prefix, local.account_id)
@@ -69,19 +69,8 @@ resource "aws_s3_bucket_public_access_block" "s3_tf_block" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_lifecycle" {
-  bucket = aws_s3_bucket.s3_tf.id
-  rule {
-    id     = "expire-state-versions"
-    status = "Enabled"
-    filter { prefix = "" }
-    noncurrent_version_expiration { noncurrent_days = 30 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
 #-------------------------------
-# Logging bucket: s3_tf_logs
+# Logging bucket
 #-------------------------------
 resource "aws_s3_bucket" "s3_tf_logs" {
   bucket        = format("%s-s3-tf-logs-%s", local.name_prefix, local.account_id)
@@ -140,7 +129,7 @@ resource "aws_s3_bucket_notification" "s3_tf_logs_notify" {
 }
 
 #-------------------------------
-# Replica bucket: replica
+# Replica bucket (cross-region)
 #-------------------------------
 resource "aws_s3_bucket" "replica" {
   provider      = aws.replica
@@ -217,7 +206,7 @@ resource "aws_s3_bucket_notification" "replica_notify" {
 }
 
 #-------------------------------
-# IAM role and replication policy
+# Replication IAM role and policy
 #-------------------------------
 resource "aws_iam_role" "replication_role" {
   name = format("%s-s3-replication-role", local.name_prefix)
@@ -271,7 +260,6 @@ resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
     }
     filter { prefix = "" }
   }
-
   depends_on = [
     aws_s3_bucket_versioning.s3_tf,
     aws_s3_bucket_versioning.s3_tf_logs,
@@ -279,9 +267,6 @@ resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
   ]
 }
 
-#-------------------------------
-# Replica for s3_tf_logs
-#-------------------------------
 resource "aws_s3_bucket" "s3_tf_logs_replica" {
   provider      = aws.replica
   bucket        = format("%s-s3-tf-logs-replica-%s", local.name_prefix, local.account_id)
@@ -298,38 +283,6 @@ resource "aws_s3_bucket_versioning" "s3_tf_logs_replica" {
   bucket   = aws_s3_bucket.s3_tf_logs_replica.id
   versioning_configuration {
     status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_replica_encryption" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = "alias/aws/s3"
-    }
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "s3_tf_logs_replica_block" {
-  provider                = aws.replica
-  bucket                  = aws_s3_bucket.s3_tf_logs_replica.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_replica_lifecycle" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  rule {
-    id     = "expire-replicated-logs"
-    status = "Enabled"
-    filter { prefix = "" }
-    expiration { days = 180 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
   }
 }
 
