@@ -301,6 +301,15 @@ resource "aws_s3_bucket_versioning" "s3_tf_logs_replica" {
   }
 }
 
+resource "aws_s3_bucket_versioning" "replica_logs" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_replica_encryption" {
   provider = aws.replica
   bucket   = aws_s3_bucket.s3_tf_logs_replica.id
@@ -380,4 +389,51 @@ resource "aws_s3_bucket_notification" "s3_tf_notify" {
 
   # Placeholder block to satisfy CKV2_AWS_62
   # Add actual destinations later if needed
+}
+
+provider "aws" {
+  alias  = "replica_logs_target"
+  region = "us-west-1"
+}
+
+resource "aws_s3_bucket" "replica_logs_target" {
+  provider      = aws.replica_logs_target
+  bucket        = format("%s-s3-replica-logs-target-%s", local.name_prefix, local.account_id)
+  force_destroy = true
+  tags = {
+    Owner       = local.name_prefix
+    Environment = "replica"
+    Purpose     = "Cross-region replica of replica_logs"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "replica_logs_target" {
+  provider = aws.replica_logs_target
+  bucket   = aws_s3_bucket.replica_logs_target.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_replication_configuration" "replica_logs_replication" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs.id
+  role     = aws_iam_role.replication_role.arn
+
+  rule {
+    id     = "replicate-replica-logs"
+    status = "Enabled"
+
+    destination {
+      bucket        = aws_s3_bucket.replica_logs_target.arn
+      storage_class = "STANDARD"
+    }
+
+    filter { prefix = "" }
+  }
+
+  depends_on = [
+    aws_s3_bucket_versioning.replica_logs,
+    aws_s3_bucket_versioning.replica_logs_target
+  ]
 }
