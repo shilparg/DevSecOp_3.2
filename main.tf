@@ -31,9 +31,12 @@ locals {
   account_id  = data.aws_caller_identity.current.account_id
 }
 
-# Primary bucket
+#-------------------------------
+# Primary bucket (Terraform state)
+#-------------------------------
 resource "aws_s3_bucket" "s3_tf" {
-  bucket = format("%s-s3-tf-bkt-%s", local.name_prefix, local.account_id)
+  bucket        = format("%s-s3-tf-bkt-%s", local.name_prefix, local.account_id)
+  force_destroy = true
   tags = {
     Owner       = local.name_prefix
     Environment = "dev"
@@ -48,9 +51,35 @@ resource "aws_s3_bucket_versioning" "s3_tf" {
   }
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_encryption" {
+  bucket = aws_s3_bucket.s3_tf.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = "alias/aws/s3"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "s3_tf_block" {
+  bucket                  = aws_s3_bucket.s3_tf.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+#-------------------------------
 # Logging bucket
+#-------------------------------
 resource "aws_s3_bucket" "s3_tf_logs" {
-  bucket = format("%s-s3-tf-logs-%s", local.name_prefix, local.account_id)
+  bucket        = format("%s-s3-tf-logs-%s", local.name_prefix, local.account_id)
+  force_destroy = true
+  tags = {
+    Owner       = local.name_prefix
+    Environment = "dev"
+    Purpose     = "Logging bucket"
+  }
 }
 
 resource "aws_s3_bucket_versioning" "s3_tf_logs" {
@@ -84,17 +113,6 @@ resource "aws_s3_bucket_logging" "s3_tf_logging" {
   target_prefix = "log/"
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_lifecycle" {
-  bucket = aws_s3_bucket.s3_tf.id
-  rule {
-    id     = "expire-old-versions"
-    status = "Enabled"
-    filter { prefix = "" }
-    noncurrent_version_expiration { noncurrent_days = 30 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
 resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_lifecycle" {
   bucket = aws_s3_bucket.s3_tf_logs.id
   rule {
@@ -106,15 +124,17 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_lifecycle" {
   }
 }
 
-resource "aws_s3_bucket_notification" "s3_tf_notify" {
-  bucket = aws_s3_bucket.s3_tf.id
-  # Optional: Lambda/SNS/SQS hooks
+resource "aws_s3_bucket_notification" "s3_tf_logs_notify" {
+  bucket = aws_s3_bucket.s3_tf_logs.id
 }
 
-# Replica bucket in another region
+#-------------------------------
+# Replica bucket (cross-region)
+#-------------------------------
 resource "aws_s3_bucket" "replica" {
-  provider = aws.replica
-  bucket   = format("%s-s3-tf-replica-%s", local.name_prefix, local.account_id)
+  provider      = aws.replica
+  bucket        = format("%s-s3-tf-replica-%s", local.name_prefix, local.account_id)
+  force_destroy = true
   tags = {
     Owner       = local.name_prefix
     Environment = "replica"
@@ -130,7 +150,64 @@ resource "aws_s3_bucket_versioning" "replica" {
   }
 }
 
-# IAM role and policy for replication
+resource "aws_s3_bucket_server_side_encryption_configuration" "replica_encryption" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = "alias/aws/s3"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "replica_block" {
+  provider                = aws.replica
+  bucket                  = aws_s3_bucket.replica.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket" "replica_logs" {
+  provider      = aws.replica
+  bucket        = format("%s-s3-replica-logs-%s", local.name_prefix, local.account_id)
+  force_destroy = true
+  tags = {
+    Owner       = local.name_prefix
+    Environment = "replica"
+    Purpose     = "Logging bucket"
+  }
+}
+
+resource "aws_s3_bucket_logging" "replica_logging" {
+  provider      = aws.replica
+  bucket        = aws_s3_bucket.replica.id
+  target_bucket = aws_s3_bucket.replica_logs.id
+  target_prefix = "log/"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "replica_lifecycle" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica.id
+  rule {
+    id     = "expire-replica-objects"
+    status = "Enabled"
+    filter { prefix = "" }
+    expiration { days = 180 }
+    abort_incomplete_multipart_upload { days_after_initiation = 7 }
+  }
+}
+
+resource "aws_s3_bucket_notification" "replica_notify" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica.id
+}
+
+#-------------------------------
+# Replication IAM role and policy
+#-------------------------------
 resource "aws_iam_role" "replication_role" {
   name = format("%s-s3-replication-role", local.name_prefix)
   assume_role_policy = jsonencode({
@@ -168,6 +245,9 @@ resource "aws_iam_role_policy" "replication_policy" {
   })
 }
 
+#-------------------------------
+# Replication configuration
+#-------------------------------
 resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
   bucket = aws_s3_bucket.s3_tf.id
   role   = aws_iam_role.replication_role.arn
@@ -184,5 +264,46 @@ resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
     aws_s3_bucket_versioning.s3_tf,
     aws_s3_bucket_versioning.s3_tf_logs,
     aws_s3_bucket_versioning.replica
+  ]
+}
+
+resource "aws_s3_bucket" "s3_tf_logs_replica" {
+  provider      = aws.replica
+  bucket        = format("%s-s3-tf-logs-replica-%s", local.name_prefix, local.account_id)
+  force_destroy = true
+  tags = {
+    Owner       = local.name_prefix
+    Environment = "replica"
+    Purpose     = "Log replication target"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "s3_tf_logs_replica" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_replication_configuration" "s3_tf_logs_replication" {
+  bucket = aws_s3_bucket.s3_tf_logs.id
+  role   = aws_iam_role.replication_role.arn
+
+  rule {
+    id     = "replicate-logs"
+    status = "Enabled"
+
+    destination {
+      bucket        = aws_s3_bucket.s3_tf_logs_replica.arn
+      storage_class = "STANDARD"
+    }
+
+    filter { prefix = "" }
+  }
+
+  depends_on = [
+    aws_s3_bucket_versioning.s3_tf_logs,
+    aws_s3_bucket_versioning.s3_tf_logs_replica
   ]
 }
