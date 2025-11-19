@@ -61,27 +61,25 @@ resource "aws_kms_key" "s3" {
   })
 }
 
-# Primary Bucket - s3_tf
-
-resource "aws_s3_bucket" "s3_tf" {
-  bucket        = format("%s-s3-tf-bkt-%s", local.name_prefix, local.account_id)
+resource "aws_s3_bucket" "example" {
+  bucket        = format("%s-example-bucket-%s", local.name_prefix, local.account_id)
   force_destroy = true
   tags = {
     Owner       = local.name_prefix
     Environment = "dev"
-    Purpose     = "Terraform state bucket"
+    Purpose     = "Example bucket"
   }
 }
 
-resource "aws_s3_bucket_versioning" "s3_tf" {
-  bucket = aws_s3_bucket.s3_tf.id
+resource "aws_s3_bucket_versioning" "example" {
+  bucket = aws_s3_bucket.example.id
   versioning_configuration {
     status = "Enabled"
   }
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_encryption" {
-  bucket = aws_s3_bucket.s3_tf.id
+resource "aws_s3_bucket_server_side_encryption_configuration" "example_encryption" {
+  bucket = aws_s3_bucket.example.id
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
@@ -91,182 +89,16 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_encryption"
   depends_on = [aws_kms_key.s3]
 }
 
-resource "aws_s3_bucket_logging" "s3_tf_logging" {
-  bucket        = aws_s3_bucket.s3_tf.id
-  target_bucket = aws_s3_bucket.s3_tf_logs.id
-  target_prefix = "log/"
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_lifecycle" {
-  bucket = aws_s3_bucket.s3_tf.id
-  rule {
-    id     = "expire-state-versions"
-    status = "Enabled"
-    filter { prefix = "" }
-    noncurrent_version_expiration { noncurrent_days = 30 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "s3_tf_notify" {
-  bucket     = aws_s3_bucket.s3_tf.id
-  depends_on = [aws_s3_bucket.s3_tf]
-}
-
-#Logging Bucket - s3_tf_logs
-resource "aws_s3_bucket" "s3_tf_logs" {
-  bucket        = format("%s-s3-tf-logs-%s", local.name_prefix, local.account_id)
-  force_destroy = true
-  tags = {
-    Owner       = local.name_prefix
-    Environment = "dev"
-    Purpose     = "Logging bucket"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "s3_tf_logs" {
-  bucket = aws_s3_bucket.s3_tf_logs.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_encryption" {
-  bucket = aws_s3_bucket.s3_tf_logs.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
-    }
-  }
-  depends_on = [aws_kms_key.s3]
-}
-
-resource "aws_s3_bucket_logging" "s3_tf_logs_logging" {
-  bucket        = aws_s3_bucket.s3_tf_logs.id
-  target_bucket = aws_s3_bucket.replica_logs.id
-  target_prefix = "log/"
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_lifecycle" {
-  bucket = aws_s3_bucket.s3_tf_logs.id
-  rule {
-    id     = "expire-logs"
-    status = "Enabled"
-    filter { prefix = "" }
-    expiration { days = 90 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "s3_tf_logs_notify" {
-  bucket     = aws_s3_bucket.s3_tf_logs.id
-  depends_on = [aws_s3_bucket.s3_tf_logs]
-}
-
-
-# Replica Bucket - replica
-
-resource "aws_s3_bucket" "replica" {
-  provider      = aws.replica
-  bucket        = format("%s-s3-tf-replica-%s", local.name_prefix, local.account_id)
-  force_destroy = true
-  tags = {
-    Owner       = local.name_prefix
-    Environment = "replica"
-    Purpose     = "Cross-region replication target"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "replica" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "replica_encryption" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
-    }
-  }
-  depends_on = [aws_kms_key.s3]
-}
-
-resource "aws_s3_bucket_logging" "replica_logging" {
-  provider      = aws.replica
-  bucket        = aws_s3_bucket.replica.id
-  target_bucket = aws_s3_bucket.replica_logs.id
-  target_prefix = "log/"
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "replica_lifecycle" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica.id
-  rule {
-    id     = "expire-replica-objects"
-    status = "Enabled"
-    filter { prefix = "" }
-    expiration { days = 180 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "replica_notify" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica.id
-  depends_on = [aws_s3_bucket.replica]
-}
-
-# Logging Bucket (replica logs)
-resource "aws_s3_bucket" "replica_logs" {
-  provider      = aws.replica
-  bucket        = format("%s-s3-replica-logs-%s", local.name_prefix, local.account_id)
-  force_destroy = true
-  tags = {
-    Owner       = local.name_prefix
-    Environment = "replica"
-    Purpose     = "Logging bucket"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "replica_logs" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica_logs.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_encryption" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica_logs.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
-    }
-  }
-  depends_on = [aws_kms_key.s3]
-}
-
-resource "aws_s3_bucket_logging" "replica_logs_logging" {
-  provider      = aws.replica
-  bucket        = aws_s3_bucket.replica_logs.id
+resource "aws_s3_bucket_logging" "example_logging" {
+  bucket        = aws_s3_bucket.example.id
   target_bucket = aws_s3_bucket.replica_logs_target.id
   target_prefix = "log/"
 }
 
-resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_lifecycle" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica_logs.id
+resource "aws_s3_bucket_lifecycle_configuration" "example_lifecycle" {
+  bucket = aws_s3_bucket.example.id
   rule {
-    id     = "expire-replica-logs"
+    id     = "expire-example"
     status = "Enabled"
     filter { prefix = "" }
     expiration { days = 180 }
@@ -274,128 +106,48 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_lifecycle" {
   }
 }
 
-resource "aws_s3_bucket_notification" "replica_logs_notify" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica_logs.id
-  depends_on = [aws_s3_bucket.replica_logs]
+resource "aws_s3_bucket_notification" "example_notify" {
+  bucket     = aws_s3_bucket.example.id
+  depends_on = [aws_s3_bucket.example]
 }
 
-#Bucket - s3_tf_logs_replica
-resource "aws_s3_bucket" "s3_tf_logs_replica" {
-  provider      = aws.replica
-  bucket        = format("%s-s3-tf-logs-replica-%s", local.name_prefix, local.account_id)
-  force_destroy = true
-  tags = {
-    Owner       = local.name_prefix
-    Environment = "replica"
-    Purpose     = "Log replication target"
-  }
+resource "aws_iam_role" "replication_role" {
+  name = format("%s-s3-replication-role", local.name_prefix)
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Principal = { Service = "s3.amazonaws.com" },
+      Action    = "sts:AssumeRole"
+    }]
+  })
 }
 
-resource "aws_s3_bucket_versioning" "s3_tf_logs_replica" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  versioning_configuration {
-    status = "Enabled"
-  }
+resource "aws_iam_role_policy" "replication_policy" {
+  name = "s3-replication-policy"
+  role = aws_iam_role.replication_role.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Action = ["s3:GetReplicationConfiguration", "s3:ListBucket"],
+        Resource = [aws_s3_bucket.s3_tf.arn]
+      },
+      {
+        Effect = "Allow",
+        Action = ["s3:GetObjectVersion", "s3:GetObjectVersionAcl", "s3:GetObjectVersionTagging"],
+        Resource = ["${aws_s3_bucket.s3_tf.arn}/*"]
+      },
+      {
+        Effect = "Allow",
+        Action = ["s3:ReplicateObject", "s3:ReplicateDelete", "s3:ReplicateTags"],
+        Resource = ["${aws_s3_bucket.replica.arn}/*"]
+      }
+    ]
+  })
 }
 
-resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_replica_encryption" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
-    }
-  }
-  depends_on = [aws_kms_key.s3]
-}
-
-resource "aws_s3_bucket_logging" "s3_tf_logs_replica_logging" {
-  provider      = aws.replica
-  bucket        = aws_s3_bucket.s3_tf_logs_replica.id
-  target_bucket = aws_s3_bucket.replica_logs_target.id
-  target_prefix = "log/"
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_replica_lifecycle" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  rule {
-    id     = "expire-replicated-logs"
-    status = "Enabled"
-    filter { prefix = "" }
-    expiration { days = 180 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "s3_tf_logs_replica_notify" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
-  depends_on = [aws_s3_bucket.s3_tf_logs_replica]
-}
-
-#Bucket - replica_logs_target
-
-resource "aws_s3_bucket" "replica_logs_target" {
-  provider      = aws.replica_logs_target
-  bucket        = format("%s-s3-replica-logs-target-%s", local.name_prefix, local.account_id)
-  force_destroy = true
-  tags = {
-    Owner       = local.name_prefix
-    Environment = "replica"
-    Purpose     = "Cross-region replica of replica_logs"
-  }
-}
-
-resource "aws_s3_bucket_versioning" "replica_logs_target" {
-  provider = aws.replica_logs_target
-  bucket   = aws_s3_bucket.replica_logs_target.id
-  versioning_configuration {
-    status = "Enabled"
-  }
-}
-
-resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_target_encryption" {
-  provider = aws.replica_logs_target
-  bucket   = aws_s3_bucket.replica_logs_target.id
-  rule {
-    apply_server_side_encryption_by_default {
-      sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
-    }
-  }
-  depends_on = [aws_kms_key.s3]
-}
-
-resource "aws_s3_bucket_logging" "replica_logs_target_logging" {
-  provider      = aws.replica_logs_target
-  bucket        = aws_s3_bucket.replica_logs_target.id
-  target_bucket = aws_s3_bucket.replica_logs_target.id
-  target_prefix = "log/"
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_target_lifecycle" {
-  provider = aws.replica_logs_target
-  bucket   = aws_s3_bucket.replica_logs_target.id
-  rule {
-    id     = "expire-replica-logs-target"
-    status = "Enabled"
-    filter { prefix = "" }
-    expiration { days = 180 }
-    abort_incomplete_multipart_upload { days_after_initiation = 7 }
-  }
-}
-
-resource "aws_s3_bucket_notification" "replica_logs_target_notify" {
-  provider = aws.replica_logs_target
-  bucket   = aws_s3_bucket.replica_logs_target.id
-  depends_on = [aws_s3_bucket.replica_logs_target]
-}
-
-# Replication Configuration
 resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
   bucket = aws_s3_bucket.s3_tf.id
   role   = aws_iam_role.replication_role.arn
@@ -412,44 +164,5 @@ resource "aws_s3_bucket_replication_configuration" "s3_tf_replication" {
   depends_on = [
     aws_s3_bucket_versioning.s3_tf,
     aws_s3_bucket_versioning.replica
-  ]
-}
-
-resource "aws_s3_bucket_replication_configuration" "s3_tf_logs_replication" {
-  bucket = aws_s3_bucket.s3_tf_logs.id
-  role   = aws_iam_role.replication_role.arn
-  rule {
-    id     = "replicate-logs"
-    status = "Enabled"
-    destination {
-      bucket        = aws_s3_bucket.s3_tf_logs_replica.arn
-      storage_class = "STANDARD"
-    }
-    filter { prefix = "" }
-  }
-
-  depends_on = [
-    aws_s3_bucket_versioning.s3_tf_logs,
-    aws_s3_bucket_versioning.s3_tf_logs_replica
-  ]
-}
-
-resource "aws_s3_bucket_replication_configuration" "replica_logs_replication" {
-  provider = aws.replica
-  bucket   = aws_s3_bucket.replica_logs.id
-  role     = aws_iam_role.replication_role.arn
-  rule {
-    id     = "replicate-replica-logs"
-    status = "Enabled"
-    destination {
-      bucket        = aws_s3_bucket.replica_logs_target.arn
-      storage_class = "STANDARD"
-    }
-    filter { prefix = "" }
-  }
-
-  depends_on = [
-    aws_s3_bucket_versioning.replica_logs,
-    aws_s3_bucket_versioning.replica_logs_target
   ]
 }

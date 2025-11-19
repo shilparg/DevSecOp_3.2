@@ -31,8 +31,11 @@ jobs:
       - name: Terraform Init
         run: terraform init
 
+      # - name: Terraform Validate
+      #   run: terraform validate
       - name: Terraform Validate
         run: terraform validate
+        working-directory: ./terraform_prj/DevSecOp_3.2
 
       - uses: terraform-linters/setup-tflint@v3
         with:
