@@ -56,7 +56,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_encryption"
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -105,7 +105,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_encryp
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -175,7 +175,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "replica_encryptio
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -327,7 +327,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "s3_tf_logs_replic
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -393,7 +393,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_encr
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -455,6 +455,18 @@ resource "aws_s3_bucket_replication_configuration" "replica_logs_replication" {
   ]
 }
 
+resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_encryption" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = "aws:kms"
+      kms_master_key_id = "alias/aws/s3"
+    }
+  }
+}
+
 resource "aws_s3_bucket_public_access_block" "replica_logs_block" {
   provider                = aws.replica
   bucket                  = aws_s3_bucket.replica_logs.id
@@ -477,6 +489,11 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_lifecycle" {
   }
 }
 
+resource "aws_s3_bucket_notification" "replica_logs_notify" {
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs.id
+}
+
 resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_target_encryption" {
   provider = aws.replica_logs_target
   bucket   = aws_s3_bucket.replica_logs_target.id
@@ -484,7 +501,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "replica_logs_targ
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
-      kms_master_key_id = aws_kms_key.s3.arn
+      kms_master_key_id = "alias/aws/s3"
     }
   }
 }
@@ -517,19 +534,4 @@ resource "aws_s3_bucket_notification" "replica_logs_target_notify" {
   # Placeholder to satisfy CKV2_AWS_62. No destinations configured yet.
   depends_on = [aws_s3_bucket.replica_logs_target]
 
-}
-
-resource "aws_kms_key" "s3" {
-  description         = "Customer-managed key for S3 encryption"
-  enable_key_rotation = true
-}
-
-# Then update all kms_master_key_id references:
-#kms_master_key_id = aws_kms_key.s3.arn
-
-resource "aws_s3_bucket_logging" "replica_logs_logging" {
-  provider      = aws.replica
-  bucket        = aws_s3_bucket.replica_logs.id
-  target_bucket = aws_s3_bucket.replica_logs_target.id
-  target_prefix = "log/"
 }
