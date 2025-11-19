@@ -45,10 +45,10 @@ resource "aws_kms_key" "s3" {
         Sid       = "AllowS3Usage",
         Effect    = "Allow",
         Principal = { Service = "s3.amazonaws.com" },
-        Action = [
+        Action    = [
           "kms:Encrypt", "kms:Decrypt", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:DescribeKey"
         ],
-        Resource = "*"
+        Resource  = "*"
       },
       {
         Sid       = "AllowAccountAccess",
@@ -218,8 +218,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_lifecycle" {
 }
 
 resource "aws_s3_bucket_notification" "replica_notify" {
-  provider   = aws.replica
-  bucket     = aws_s3_bucket.replica.id
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica.id
   depends_on = [aws_s3_bucket.replica]
 }
 
@@ -275,8 +275,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_lifecycle" {
 }
 
 resource "aws_s3_bucket_notification" "replica_logs_notify" {
-  provider   = aws.replica
-  bucket     = aws_s3_bucket.replica_logs.id
+  provider = aws.replica
+  bucket   = aws_s3_bucket.replica_logs.id
   depends_on = [aws_s3_bucket.replica_logs]
 }
 
@@ -332,8 +332,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "s3_tf_logs_replica_lifecycle" 
 }
 
 resource "aws_s3_bucket_notification" "s3_tf_logs_replica_notify" {
-  provider   = aws.replica
-  bucket     = aws_s3_bucket.s3_tf_logs_replica.id
+  provider = aws.replica
+  bucket   = aws_s3_bucket.s3_tf_logs_replica.id
   depends_on = [aws_s3_bucket.s3_tf_logs_replica]
 }
 
@@ -390,8 +390,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "replica_logs_target_lifecycle"
 }
 
 resource "aws_s3_bucket_notification" "replica_logs_target_notify" {
-  provider   = aws.replica_logs_target
-  bucket     = aws_s3_bucket.replica_logs_target.id
+  provider = aws.replica_logs_target
+  bucket   = aws_s3_bucket.replica_logs_target.id
   depends_on = [aws_s3_bucket.replica_logs_target]
 }
 
