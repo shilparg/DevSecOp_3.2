@@ -337,7 +337,7 @@ resource "aws_s3_bucket_notification" "s3_tf_logs_replica_notify" {
   depends_on = [aws_s3_bucket.s3_tf_logs_replica]
 }
 
-Bucket - replica_logs_target
+#Bucket - replica_logs_target
 
 resource "aws_s3_bucket" "replica_logs_target" {
   provider      = aws.replica_logs_target
