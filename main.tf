@@ -453,3 +453,25 @@ resource "aws_s3_bucket_replication_configuration" "replica_logs_replication" {
     aws_s3_bucket_versioning.replica_logs_target
   ]
 }
+
+locals {
+  s3_buckets = {
+    s3_tf                  = aws_s3_bucket.s3_tf.id
+    s3_tf_logs             = aws_s3_bucket.s3_tf_logs.id
+    replica                = aws_s3_bucket.replica.id
+    replica_logs           = aws_s3_bucket.replica_logs.id
+    s3_tf_logs_replica     = aws_s3_bucket.s3_tf_logs_replica.id
+    replica_logs_target    = aws_s3_bucket.replica_logs_target.id
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "all_blocks" {
+  for_each = local.s3_buckets
+
+  bucket = each.value
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
